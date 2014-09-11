@@ -1,5 +1,6 @@
 rm(list=ls())
 source("/Users/stevensmith/bin/R_source_functions/ngs.R")
+setwd("/Users/stevensmith/bin/Qualifiers/Simulations")
 ## each subject has her own subject-specfic effect. There are 50 subjects total.
 N<-50
 
@@ -50,20 +51,52 @@ head(counts)
 counts$BV<-rep(rep(c(0,1),each=3),times=N*m)
 attach(counts)
 counts$uniqid<-paste("mir",miRNA_id,"_SID_",subject_id,"_",sample_id,sep="")
+counts$subj_rep<-paste("SID_",subject_id,"_",sample_id,sep="")
 detach(counts)
+
+simulated_miRNA_counts<-counts
+save(list=c("N","n","m","k","simulated_miRNA_counts"),file="simulated_miRNA_counts_objects.R")
+
+##------------------------------------------------------
+## Start from here
+rm(list=ls())
+source("/Users/stevensmith/bin/R_source_functions/ngs.R")
+setwd("/Users/stevensmith/bin/Qualifiers/Simulations")
+load("simulated_miRNA_counts_objects.R")
+counts<-simulated_miRNA_counts
+
 (counts.h<-head(counts,n=10*N*n))
 
 ggplot(counts.h,aes(x=miRNA_id,y=miRNA.expression,fill=factor(BV)))+geom_bar(stat="identity")+facet_wrap(~BV,ncol=1)
 
-attach(counts.h)
-CrossTable(miRNA_id,miRNA.expression,prop.r = F,prop.c=F,prop.t = F,prop.chisq = F)
-detach(counts.h)
+#attach(counts.h)
+#CrossTable(miRNA_id,miRNA.expression,prop.r = F,prop.c=F,prop.t = F,prop.chisq = F)
+#detach(counts.h)
 # Histogram Colored (blue and red)
-hist(miRNA[miRNA$BV==0,]$exp.raw, col=rgb(1,0,0,0.5),xlim=c(0,1.2*max(miRNA$exp.raw)), main="BV vs Non BV Raw Expression", xlab="Expression")
-hist(miRNA[miRNA$BV==1,]$exp.raw, col=rgb(0,0,1,0.5), add=T)
-box()
+#hist(miRNA[miRNA$BV==0,]$exp.raw, col=rgb(1,0,0,0.5),xlim=c(0,1.2*max(miRNA$exp.raw)), main="BV vs Non BV Raw Expression", xlab="Expression")
+#hist(miRNA[miRNA$BV==1,]$exp.raw, col=rgb(0,0,1,0.5), add=T)
+#box()
 library("reshape")
-counts.reshape<-subset(x = counts.h,select=c("miRNA.expression","uniqid")) 
-cast(counts.h,formula = miRNA_id~subject_id~sample_id~miRNA.expression)
+
+counts.reshape<-cast(counts,formula = miRNA_id~subj_rep,value="miRNA.expression")
 head(counts.reshape)
-names(counts.reshape)<-c("variable","value")
+## Next, test ability of model to correctly identify differentially expressed genes (top 50) given other sources of varibility
+
+## As a start, use edgeR, which allows a GLM approach
+library(edgeR)
+group<-rep(c(rep(0,times=3),rep(1,times=3)),times=ncol(counts.reshape)/6)
+dge<-DGEList(counts=counts.reshape,group=group)
+dge<-estimateCommonDisp(dge)
+dge<-estimateTagwiseDisp(dge)
+et<-exactTest(dge)
+topTags(et)
+subject<-rep(1:50,each=6)
+design<-model.matrix(~subject+group)
+dge<-estimateGLMCommonDisp(dge)
+fit<-glmFit(counts.reshape,design,dispersion = estimateGLMCommonDisp(counts.reshape,design))
+topTags(glmLRT(fit,coef=2))
+counts$BV<-as.numeric(counts$BV)
+counts.mirna11<-counts[counts$miRNA_id==11,]
+counts.mirna11$miRNA.expression<-round(counts.mirna11$miRNA.expression)
+glm(miRNA.expression~BV,family=neg.bin,data=counts.mirna11)
+warnings()
