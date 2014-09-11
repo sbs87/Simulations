@@ -100,3 +100,11 @@ counts.mirna11<-counts[counts$miRNA_id==11,]
 counts.mirna11$miRNA.expression<-round(counts.mirna11$miRNA.expression)
 glm(miRNA.expression~BV,family=neg.bin,data=counts.mirna11)
 warnings()
+
+load("/Users/stevensmith/Documents/School/Maryland/D4_CT_rep1.easyRNAseq.transcriptCounts")
+head (la.counts)
+la.counts[grep("ENST00000385060",row.names(la.counts)),]
+test<-data.frame(cbind(la.counts,la.counts))
+
+library(limma)
+limmaUsersGuide()
