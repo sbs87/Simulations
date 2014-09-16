@@ -101,6 +101,10 @@ counts.mirna11$miRNA.expression<-round(counts.mirna11$miRNA.expression)
 glm(miRNA.expression~BV,family=neg.bin,data=counts.mirna11)
 warnings()
 
+## ROC analysis
+specificty<-tp/(tp+fn)
+sensititivty<-fp(fp+tn)
+
 load("/Users/stevensmith/Documents/School/Maryland/D4_CT_rep1.easyRNAseq.transcriptCounts")
 head (la.counts)
 la.counts[grep("ENST00000385060",row.names(la.counts)),]
@@ -113,12 +117,12 @@ limmaUsersGuide()
 ## the model as I;ve defined it is:
 y_i=f(S_j,BVS_k,CS_k,BVD_j,P_k,B_k,e_k)
 
-y is modeled as log2 transformed miRNA read counts and initially assumed to follow a Negative Binomial distribution with parameters μ (per miRNA and sample normalized expected value) and dispersion α, but can also follow a Normal distribution (and will be modeled as such if found to fit this distribution)
-S_j is effect of subject j and is assumed to be N(0,σ_j^2). The σ_j^2 can come from a seperate distribiton as well. This will be the main crux of the simulation: what is the effect of changing this parameter on the degree of specificity and sensitivity
-BVS_k the effect of BV state (negative or positive) of sample k within subject j. There will be some variability to this as well, to allow to class misassignment
-CS_k is effect of community state type (I,II,III,IV-a,IV-b,V, see ref [16]) of sample k within subject j. Same as above, allow for class misassignment
-BVD_j is the effect of subject-specific chronological direction of BV transition (from NBV to PBV or PBV to NBV). This can be simulated as anothe random process depending on complexity. For now, leave it out. 
-P_k and B_k are proxies for sample k’s physiological (i.e., menstruation) or behavioral (i.e., sexual activity) effects, respectively
-and e_k is the error term. Since both BV and community state assignments may have inherent biases or inaccuracies, the 〖BVS〗_kand 〖CS〗_kterms will be modeled as weighted functions depending on the confidence of group assignment, i.e., 〖BVS〗_k=〖bw〗_k*〖[BVS==b]〗_kand 〖CS〗_k=〖cw〗_k*〖[BVS==c]〗_k, where 〖bw〗_k and 〖cw〗_k are a weighted measure of the confidence in BV and community state assignments b and c, respectively, and [X==x] is encoding for each respective state type. The weight will be a distance metric such as Euclidian distance from group assignment centroid. 
+#y is modeled as log2 transformed miRNA read counts and initially assumed to follow a Negative Binomial distribution with parameters μ (per miRNA and sample normalized expected value) and dispersion α, but can also follow a Normal distribution (and will be modeled as such if found to fit this distribution)
+#S_j is effect of subject j and is assumed to be N(0,σ_j^2). The σ_j^2 can come from a seperate distribiton as well. This will be the main crux of the simulation: what is the effect of changing this parameter on the degree of specificity and sensitivity
+#BVS_k the effect of BV state (negative or positive) of sample k within subject j. There will be some variability to this as well, to allow to class misassignment
+#CS_k is effect of community state type (I,II,III,IV-a,IV-b,V, see ref [16]) of sample k within subject j. Same as above, allow for class misassignment
+#BVD_j is the effect of subject-specific chronological direction of BV transition (from NBV to PBV or PBV to NBV). This can be simulated as anothe random process depending on complexity. For now, leave it out. 
+#P_k and B_k are proxies for sample k’s physiological (i.e., menstruation) or behavioral (i.e., sexual activity) effects, respectively
+#and e_k is the error term. Since both BV and community state assignments may have inherent biases or inaccuracies, the 〖BVS〗_kand 〖CS〗_kterms will be modeled as weighted functions depending on the confidence of group assignment, i.e., 〖BVS〗_k=〖bw〗_k*〖[BVS==b]〗_kand 〖CS〗_k=〖cw〗_k*〖[BVS==c]〗_k, where 〖bw〗_k and 〖cw〗_k are a weighted measure of the confidence in BV and community state assignments b and c, respectively, and [X==x] is encoding for each respective state type. The weight will be a distance metric such as Euclidian distance from group assignment centroid. 
 
 
