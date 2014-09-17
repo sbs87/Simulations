@@ -125,4 +125,40 @@ y_i=f(S_j,BVS_k,CS_k,BVD_j,P_k,B_k,e_k)
 #P_k and B_k are proxies for sample k’s physiological (i.e., menstruation) or behavioral (i.e., sexual activity) effects, respectively
 #and e_k is the error term. Since both BV and community state assignments may have inherent biases or inaccuracies, the 〖BVS〗_kand 〖CS〗_kterms will be modeled as weighted functions depending on the confidence of group assignment, i.e., 〖BVS〗_k=〖bw〗_k*〖[BVS==b]〗_kand 〖CS〗_k=〖cw〗_k*〖[BVS==c]〗_k, where 〖bw〗_k and 〖cw〗_k are a weighted measure of the confidence in BV and community state assignments b and c, respectively, and [X==x] is encoding for each respective state type. The weight will be a distance metric such as Euclidian distance from group assignment centroid. 
 
+library(DESeq2)
+source("http://bioconductor.org/biocLite.R")
+library("parathyroidSE")
+data(parathyroidGenesSE)
+se<-parathyroidGenesSE
+colnames(se)<-colData(se)$run
+ddsPara<-DESeqDataSet(se=se,design=~patient+treatment)
+colData(ddsPara)$treatment <-factor(colData(ddsPara)$treatment,levels=c("Control","DPN","OHT"))
+ddsPara
 
+library(Biobase)
+library(pasilla)
+data(pasillaGenes)
+countData<-counts(pasillaGenes)
+colData<-pData(pasillaGenes)[,c("condition","type")]
+dds<-DESeqDataSetFromMatrix(countData=countData,
+                            colData=colData,
+                            design=~condition
+                            )
+colData(dds)$condition<-factor(colData(dds)$condition,levels=c("untreated","treated"))
+dds
+
+#colData(dds)$condition<-relevel(colData(dds)$condition,"control")
+dds<-DESeq(dds)
+res<-results(dds)
+res<-res[order(res$padj),]
+head(res)
+plotMA(dds,ylim=c(-2,2),main="DESeq2")
+mcols(res,use.names=T)
+colData(dds)
+design(dds)<-formula(~type+condition)
+dds<-DESeq(dds)
+res<-results(dds)
+head(res)
+rld<-rlogTransformation(dds,blind=T)
+print(plotPCA(rld,intgroup=c("condition","type")))
+?nbinomWaldTest
