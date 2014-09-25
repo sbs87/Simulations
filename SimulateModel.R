@@ -126,7 +126,7 @@ y_i=f(S_j,BVS_k,CS_k,BVD_j,P_k,B_k,e_k)
 #and e_k is the error term. Since both BV and community state assignments may have inherent biases or inaccuracies, the 〖BVS〗_kand 〖CS〗_kterms will be modeled as weighted functions depending on the confidence of group assignment, i.e., 〖BVS〗_k=〖bw〗_k*〖[BVS==b]〗_kand 〖CS〗_k=〖cw〗_k*〖[BVS==c]〗_k, where 〖bw〗_k and 〖cw〗_k are a weighted measure of the confidence in BV and community state assignments b and c, respectively, and [X==x] is encoding for each respective state type. The weight will be a distance metric such as Euclidian distance from group assignment centroid. 
 
 library(DESeq2)
-source("http://bioconductor.org/biocLite.R")
+#source("http://bioconductor.org/biocLite.R")
 library("parathyroidSE")
 data(parathyroidGenesSE)
 se<-parathyroidGenesSE
@@ -161,4 +161,7 @@ res<-results(dds)
 head(res)
 rld<-rlogTransformation(dds,blind=T)
 print(plotPCA(rld,intgroup=c("condition","type")))
-?nbinomWaldTest
+nbinomWaldTest
+
+DESeq::fitNbinomGLMs  
+DESeq::fitNbinomGLMsForMatrix
