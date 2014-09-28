@@ -1,167 +1,153 @@
 rm(list=ls())
-source("/Users/stevensmith/bin/R_source_functions/ngs.R")
+#source("/Users/stevensmith/bin/R_source_functions/ngs.R")
 setwd("/Users/stevensmith/bin/Qualifiers/Simulations")
+library("reshape")
+library(DESeq2)
+library(ggplot2)
 ## each subject has her own subject-specfic effect. There are 50 subjects total.
 N<-50
 
 ## There are 6 samples taken from each indigidual. 
 n<-6
 
-## Eavery 6th sample belongs to a different subject. 
-(subject_table<-data.frame(subj=rep(1:N,each=n),subject.effect=rep(-99,times=n*N),BV.status=rep(rep(c(0,1),each=3),times=N)))
-for(i in 1:N){
-  subject_table[subject_table$subj==i,]$subject.effect<-rnorm(n,mean=runif(1,min=0,max=2),sd=runif(1))
-}
-(subject_table)
 
 ## There are 500 miRNAs that sequencing at once. Only 50 of them are truly differentially expressed
 m<-50
-k<-0.1*m ## Truly differential expressed
-
+ROC<-20
+nsig<-seq(from=.5,to=5,length.out = 5)
+spec.sens<-data.frame(sensitivity=rep(0,times=ROC),specificity=rep(0,times=ROC))
 (miRNA<-data.frame(miRNA.id=seq(1:m),bio.effect=rnorm(m,mean=runif(1,min=0,max=1),sd=runif(1))))
-miRNA$exp.pbv<-rpois(m,6)
-miRNA$exp.nbv<-rpois(m,3)
+
+for(i in 1:m){
+  up_or_down<-rbinom(1,1,0.6)
+  miRNA$exp.pbv[i]<-rnbinom(1000,mu = runif(1,min = 1,max=1000),size=1/0.001)*(2*up_or_down-1) ## x when up_or_down =1; -x when up_or_down=0
+  miRNA$exp.nbv[i]<-rnorm(1,mean = 0,sd = 1)
+}
+
+k<-round(.25*m) ## Truly differential expressed
 miRNA$BV<-c(rep(1,times=k),rep(0,times=m-k))
-(miRNA)
-(counts<-data.frame(miRNA_id=rep(1:m,each=N*6),subject_id=rep(rep(1:N,each=6),times=m),sample_id=rep(1:n,times=m*N),miRNA.expression=-99))
+
+(counts<-data.frame(miRNA_id=rep(1:m,each=N*6),subject_id=rep(rep(1:N,each=6),times=m),sample_id=rep(1:n,times=m*N),miRNA.expression=-99,random.effect=rnorm(n*m*N,0,1)))
+
+for (r in 1:ROC){
+## Eavery 6th sample belongs to a different subject. 
+(subject_table<-data.frame(subj=rep(1:N,each=n),subject.effect=rep(-99,times=n*N),BV.status=rep(rep(c(0,1),each=3),times=N)))
+for(i in 1:N){
+  #i<-1
+  #r<-5
+  subject_table[subject_table$subj==i,]$subject.effect<-rnorm(1,mean=0,sd=nsig[r])
+}
 
 for(miRNA_n in 1:m){
-  #miRNA_n<-10
   print(str(miRNA_n))
   for(subj_n in 1:N){
-    #subj_n<-3
     for(sample_n in 1:n){
-      #sample_n<-1
       currentIter.miRNA<-miRNA[miRNA$miRNA.id==miRNA_n,]
       currentIter.subj.sample.row<-subject_table[subject_table$subj==subj_n,][sample_n,]
       miRNA_expression_sample_bit = miRNA_expression_sample<--1000
       miRNA_expression_sample_bit<-1*currentIter.subj.sample.row$BV.status+2*currentIter.miRNA$BV
-      switch(miRNA_expression_sample_bit+1,miRNA_expression_sample<-currentIter.miRNA$exp.nbv,
-             miRNA_expression_sample<-currentIter.miRNA$exp.nbv,
-             miRNA_expression_sample<-currentIter.miRNA$exp.nbv,
-             miRNA_expression_sample<-currentIter.miRNA$exp.pbv)
-      counts[(counts$miRNA_id==miRNA_n) & (counts$subject_id==subj_n) & (counts$sample_id==sample_n),]$miRNA.expression <-
-        abs(currentIter.subj.sample.row$subject.effect) + abs(currentIter.miRNA$bio.effect) + miRNA_expression_sample
+      switch(miRNA_expression_sample_bit+1,miRNA_expression_sample<-currentIter.miRNA$exp.nbv,#+rnorm(1,0,1),
+             miRNA_expression_sample<-currentIter.miRNA$exp.nbv,#+rnorm(1,0,1),
+             miRNA_expression_sample<-currentIter.miRNA$exp.nbv,#+rnorm(1,0,1),
+             miRNA_expression_sample<-currentIter.miRNA$exp.pbv)#+rnorm(1,0,1))
+      u<-exp(miRNA_expression_sample )#+ currentIter.subj.sample.row$subject.effect)
+      alpha<-0.01
+      (neg_bin_sample<-rnbinom(1000,mu=u,size=1/alpha))
+      #hist(neg_bin_sample,main=paste("mirna",miRNA_n,"subj",subj_n,"sample",sample_n,"mu",log(u,base=exp(1))),col='blue')
+      #abline(v=neg_bin_sample[1],col='red',lwd=4)
+      counts[(counts$miRNA_id==miRNA_n) & (counts$subject_id==subj_n) & (counts$sample_id==sample_n),]$miRNA.expression <-neg_bin_sample[1]
     }
   }
 }
-(counts)
-
-head(counts)
+#(counts)
+#head(counts)
 counts$BV<-rep(rep(c(0,1),each=3),times=N*m)
 attach(counts)
 counts$uniqid<-paste("mir",miRNA_id,"_SID_",subject_id,"_",sample_id,sep="")
 counts$subj_rep<-paste("SID_",subject_id,"_",sample_id,sep="")
 detach(counts)
-
-simulated_miRNA_counts<-counts
-save(list=c("N","n","m","k","simulated_miRNA_counts"),file="simulated_miRNA_counts_objects.R")
-
-##------------------------------------------------------
-## Start from here
-rm(list=ls())
-source("/Users/stevensmith/bin/R_source_functions/ngs.R")
-setwd("/Users/stevensmith/bin/Qualifiers/Simulations")
-load("simulated_miRNA_counts_objects.R")
-counts<-simulated_miRNA_counts
-
-(counts.h<-head(counts,n=10*N*n))
-
-ggplot(counts.h,aes(x=miRNA_id,y=miRNA.expression,fill=factor(BV)))+geom_bar(stat="identity")+facet_wrap(~BV,ncol=1)
-
-#attach(counts.h)
-#CrossTable(miRNA_id,miRNA.expression,prop.r = F,prop.c=F,prop.t = F,prop.chisq = F)
-#detach(counts.h)
-# Histogram Colored (blue and red)
-#hist(miRNA[miRNA$BV==0,]$exp.raw, col=rgb(1,0,0,0.5),xlim=c(0,1.2*max(miRNA$exp.raw)), main="BV vs Non BV Raw Expression", xlab="Expression")
-#hist(miRNA[miRNA$BV==1,]$exp.raw, col=rgb(0,0,1,0.5), add=T)
-#box()
-library("reshape")
-
+hist(log(counts$miRNA.expression))
+#(counts.h<-head(counts,n=35*N*n))
+#ggplot(counts.h,aes(x=miRNA_id,y=miRNA.expression,fill=factor(BV)))+geom_bar(stat="identity")+facet_wrap(~BV,ncol=1)
+counts$miRNA.expression<-counts$miRNA.expression+1
 counts.reshape<-cast(counts,formula = miRNA_id~subj_rep,value="miRNA.expression")
 head(counts.reshape)
-## Next, test ability of model to correctly identify differentially expressed genes (top 50) given other sources of varibility
 
-## As a start, use edgeR, which allows a GLM approach
-library(edgeR)
-group<-rep(c(rep(0,times=3),rep(1,times=3)),times=ncol(counts.reshape)/6)
-dge<-DGEList(counts=counts.reshape,group=group)
-dge<-estimateCommonDisp(dge)
-dge<-estimateTagwiseDisp(dge)
-et<-exactTest(dge)
-topTags(et)
-subject<-rep(1:50,each=6)
-design<-model.matrix(~subject+group)
-dge<-estimateGLMCommonDisp(dge)
-fit<-glmFit(counts.reshape,design,dispersion = estimateGLMCommonDisp(counts.reshape,design))
-topTags(glmLRT(fit,coef=2))
-counts$BV<-as.numeric(counts$BV)
-counts.mirna11<-counts[counts$miRNA_id==11,]
-counts.mirna11$miRNA.expression<-round(counts.mirna11$miRNA.expression)
-glm(miRNA.expression~BV,family=neg.bin,data=counts.mirna11)
-warnings()
+(colData<-data.frame(id=paste("SID_",subject_table$subj,"_",rep(1:6),sep=""),subject_table))
+#counts.reshape[counts.reshape<0]<-0
+#counts.reshape<-floor(counts.reshape)
+deseq_se<-DESeqDataSetFromMatrix(countData=as.matrix(counts.reshape),colData=colData,design=~subj+BV.status)
 
-## ROC analysis
-specificty<-tp/(tp+fn)
-sensititivty<-fp(fp+tn)
-
-load("/Users/stevensmith/Documents/School/Maryland/D4_CT_rep1.easyRNAseq.transcriptCounts")
-head (la.counts)
-la.counts[grep("ENST00000385060",row.names(la.counts)),]
-test<-data.frame(cbind(la.counts,la.counts))
-
-library(limma)
-limmaUsersGuide()
-
-## model
-## the model as I;ve defined it is:
-y_i=f(S_j,BVS_k,CS_k,BVD_j,P_k,B_k,e_k)
-
-#y is modeled as log2 transformed miRNA read counts and initially assumed to follow a Negative Binomial distribution with parameters μ (per miRNA and sample normalized expected value) and dispersion α, but can also follow a Normal distribution (and will be modeled as such if found to fit this distribution)
-#S_j is effect of subject j and is assumed to be N(0,σ_j^2). The σ_j^2 can come from a seperate distribiton as well. This will be the main crux of the simulation: what is the effect of changing this parameter on the degree of specificity and sensitivity
-#BVS_k the effect of BV state (negative or positive) of sample k within subject j. There will be some variability to this as well, to allow to class misassignment
-#CS_k is effect of community state type (I,II,III,IV-a,IV-b,V, see ref [16]) of sample k within subject j. Same as above, allow for class misassignment
-#BVD_j is the effect of subject-specific chronological direction of BV transition (from NBV to PBV or PBV to NBV). This can be simulated as anothe random process depending on complexity. For now, leave it out. 
-#P_k and B_k are proxies for sample k’s physiological (i.e., menstruation) or behavioral (i.e., sexual activity) effects, respectively
-#and e_k is the error term. Since both BV and community state assignments may have inherent biases or inaccuracies, the 〖BVS〗_kand 〖CS〗_kterms will be modeled as weighted functions depending on the confidence of group assignment, i.e., 〖BVS〗_k=〖bw〗_k*〖[BVS==b]〗_kand 〖CS〗_k=〖cw〗_k*〖[BVS==c]〗_k, where 〖bw〗_k and 〖cw〗_k are a weighted measure of the confidence in BV and community state assignments b and c, respectively, and [X==x] is encoding for each respective state type. The weight will be a distance metric such as Euclidian distance from group assignment centroid. 
-
-library(DESeq2)
-#source("http://bioconductor.org/biocLite.R")
-library("parathyroidSE")
-data(parathyroidGenesSE)
-se<-parathyroidGenesSE
-colnames(se)<-colData(se)$run
-ddsPara<-DESeqDataSet(se=se,design=~patient+treatment)
-colData(ddsPara)$treatment <-factor(colData(ddsPara)$treatment,levels=c("Control","DPN","OHT"))
-ddsPara
-
-library(Biobase)
-library(pasilla)
-data(pasillaGenes)
-countData<-counts(pasillaGenes)
-colData<-pData(pasillaGenes)[,c("condition","type")]
-dds<-DESeqDataSetFromMatrix(countData=countData,
-                            colData=colData,
-                            design=~condition
-                            )
-colData(dds)$condition<-factor(colData(dds)$condition,levels=c("untreated","treated"))
-dds
-
-#colData(dds)$condition<-relevel(colData(dds)$condition,"control")
-dds<-DESeq(dds)
+dds<-DESeq(deseq_se)
 res<-results(dds)
+res[is.na(res$padj),]$padj<-1
+spec.sens[r,]<-calculateSensitivitySpecificity(res,miRNA)
+print(str(r))
+}
+
 res<-res[order(res$padj),]
-head(res)
-plotMA(dds,ylim=c(-2,2),main="DESeq2")
+
+res[res$padj<0.01,]
 mcols(res,use.names=T)
 colData(dds)
-design(dds)<-formula(~type+condition)
-dds<-DESeq(dds)
-res<-results(dds)
-head(res)
 rld<-rlogTransformation(dds,blind=T)
-print(plotPCA(rld,intgroup=c("condition","type")))
-nbinomWaldTest
+print(plotPCA(rld,intgroup=c("BV.status"))) ## Double chec this- the BV points should be a subset of the non BV points. They look about equal
 
-DESeq::fitNbinomGLMs  
-DESeq::fitNbinomGLMsForMatrix
+## NExt steps:
+## Get rid of integer effect
+## Wider range of mean expression values
+## Clean up scrtipt
+## MOre diff exp genes
+## Define specificity and sentitivty script- realized an issue with the first run- the test doesnt pick up DE genes based on FC becasue the "true" expression isnt above the thresholds. 
+## Re think the way in which fc values are sampled. Perhaps the "true" de need to be smapled on a FC al 1.5 basis- in other words, they are linked and 95% if the time, the fc values are al 2. 
+
+## - ok this may need tobe rethought. Real de seq data has counts that range from 1, 10s to 100s and 500s. Need a way to simulate this
+## Historgram of real count data shows a mixed/uniform that has representatin from 0 to 10^8.
+
+## First, make counts plot look like ones from existing data. Then, figure out parameters needed to make that happen. 
+## Generate counts for both sig and non sig based on what this dist should look like
+plot(res$log2FoldChange,-log(res$padj,base=10))
+abline(h=-log(0.01,base=10),col='red')
+abline(v=c(-1.5,1.5),col='red')
+hist(res$log2FoldChange)
+miRNA$exp.pbv/miRNA$exp.nbv
+
+calculateSensitivitySpecificity<-function(res,miRNA){
+  diff.exp.test<-as.character(row.names(res[res$padj<0.01 ,]))#& abs(res$log2FoldChange)>1.5,]))
+  ndiff.exp.test<-as.character(row.names(res[res$padj>=0.01 ,]))#| abs(res$log2FoldChange)<=1.5,]))
+  diff.exp.true<-as.character(miRNA[miRNA$BV==1,]$miRNA.id )
+  diff.exp.false<-as.character(miRNA[miRNA$BV==0,]$miRNA.id)
+
+  true.positives<-sum(diff.exp.test %in% diff.exp.true)
+  false.positives<-sum((diff.exp.test %in% diff.exp.false))
+  true.negatives<-sum(ndiff.exp.test %in% diff.exp.false)
+  false.negatives<-sum((ndiff.exp.test %in% diff.exp.true))
+  sensitivity<-true.positives/(true.positives+false.negatives)
+  specificity<-true.negatives/(true.negatives+false.positives)
+  
+  return(data.frame(sensitivity=sensitivity,specificity=specificity))
+}
+res.combined<-data.frame(miRNA[order(as.character(miRNA$miRNA.id)),],res[order(row.names(res)),])
+data.frame(res.combined,de=(abs(res.combined$log2FoldChange)>1.5 & res.combined$padj<0.01))
+
+qbeta(.2,2,4)
+hist(rbeta(1000,2,7))
+
+
+library("parathyroidSE")
+data("parathyroidGenesSE")
+se<-parathyroidGenesSE
+colnames(se)<-colData(se)$run
+ddsPara<-DESeqDataSet(se=se,design=~patient + treatment)
+colData(ddsPara)$treatment <- factor(colData(ddsPara)$treatment,levels=c("Control","DPN","OHT"))
+dds<-DESeq(ddsPara)
+res<-results(dds)
+x<-abs(res[abs(res$log2FoldChange)>1.5 & !is.na(res$log2FoldChange),]$log2FoldChange)
+hist(x)
+table(x)
+library(MASS)
+fitdistr(round(assays(ddsPara)$counts),"Negative Binomial")
+warnings()
+hist(log(assays(ddsPara)$counts))
+hist(rnbinom(1000,mu=2.04134881,size=1/262.24898769))
+plot(-10:10,exp(-10:10))
